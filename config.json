@@ -1,0 +1,36 @@
+{
+  "espPositions": {
+    "1": {
+      "x": 0,
+      "y": 0
+    },
+    "2": {
+      "x": 10,
+      "y": 0
+    },
+    "3": {
+      "x": 0,
+      "y": 10
+    },
+    "4": {
+      "x": 10,
+      "y": 10
+    }
+  },
+  "distanceCalculation": {
+    "txPower": -49,
+    "n_factor": 3.1
+  },
+  "trilateration": {
+    "lm_options": {
+      "damping": 0.02,
+      "initialValues": [
+        5,
+        5
+      ],
+      "gradientDifference": 0.000001,
+      "maxIterations": 100,
+      "errorTolerance": 0.001
+    }
+  }
+}

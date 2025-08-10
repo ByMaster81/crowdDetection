@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cihaz Yoğunluk Haritası (Heatmap)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Roboto', Arial, sans-serif;
+      background-image: url('/background.jpeg');
+      background-size: cover;
+      color: #333;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      box-sizing: border-box;
+    }
+
+    .container {
+      background-color: hsla(211, 30%, 85%, 0.918);
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+      width: auto;
+      max-width: 800px; /* Canvas genişliğine göre ayarlanabilir */
+      text-align: center;
+    }
+
+    h1 {
+      color: #2c3e50;
+      margin-bottom: 25px;
+      font-weight: 700;
+    }
+
+    /* Heatmap'in çizileceği alan için bir wrapper */
+    #heatmapContainer {
+      width: 700px; /* Canvas genişliği ile aynı */
+      height: 550px; /* Canvas yüksekliği ile aynı */
+      margin-top: 20px;
+      border: 1px solid #eb1313;
+      border-radius: 8px;
+      position: relative; /* ESP noktalarını üzerine çizmek için */
+      background-color: #fffce1; /* Opsiyonel: heatmap transparan ise görünür */
+    }
+
+    /* ESP noktalarını çizmek için ayrı bir canvas kullanabiliriz
+       veya aynı canvas'ı heatmap sonrası kullanabiliriz.
+       Şimdilik heatmap'in konteynerını kullanacağız. */
+    #espCanvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none; /* Bu canvas tıklama olaylarını engellemesin */
+    }
+
+
+    .legend {
+      margin-top: 25px;
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      font-size: 0.9em;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .legend-color-box {
+      width: 15px;
+      height: 15px;
+      border-radius: 3px;
+      border: 1px solid #ccc;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Cihaz Yoğunluk Haritası</h1>
+    <div id="heatmapContainer">
+        <!-- heatmap.js bu div'in içine kendi canvas'ını oluşturacak -->
+        <!-- ESP noktalarını çizmek için opsiyonel overlay canvas -->
+        <canvas id="espCanvas" width="700" height="550"></canvas>
+    </div>
+
+    <div class="legend">
+      <div class="legend-item">
+        <span class="legend-color-box" style="background-color: #ff9900;"></span> ESP Cihazı
+      </div>
+      <div class="legend-item">
+        (Heatmap renkleri yoğunluğu gösterir)
+      </div>
+    </div>
+  </div>
+
+  <!-- heatmap.js kütüphanesi -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/heatmap.js/2.0.2/heatmap.min.js"></script>
+  <script>
+    const espCanvas = document.getElementById('espCanvas'); // ESP'leri çizmek için canvas
+    const espCtx = espCanvas.getContext('2d');
+
+    const scale = 40; // 1 birim = 40px (önceki ortalama ayarından)
+    const pointRadius = 9; // ESP noktaları için yarıçap
+    const espColor = '#ff9900';
+
+    const mapPadding = 40; // Kenarlardan boşluk (ESP çizimi için)
+
+    let espPoints = {};
+
+	fetch('/api/config')
+  		.then(res => {
+    	if (!res.ok) throw new Error('Konfigürasyon alınamadı');
+    	return res.json();
+  	})
+  	.then(data => {
+    	espPoints = data.espPositions;  // config.json içindeki espPositions objesini al
+    	drawESPPositionsOnOverlay();    // ESP noktalarını çiz
+  	})
+  	.catch(err => {
+    	console.error('Konfigürasyon yüklenirken hata:', err);
+  	});
+
+    // ESP alanının mantıksal dünya boyutu ve ortalama için hesaplamalar (önceki koddan)
+    const espWorldWidth = 10;
+    const espWorldHeight = 10;
+    const effectiveCanvasWidth = espCanvas.width - 2 * mapPadding;
+    const effectiveCanvasHeight = espCanvas.height - 2 * mapPadding;
+    const espDeviceAreaPixelWidth = espWorldWidth * scale;
+    const espDeviceAreaPixelHeight = espWorldHeight * scale;
+    const offsetXForCentering = (effectiveCanvasWidth - espDeviceAreaPixelWidth) / 2;
+    const offsetYForCentering = (effectiveCanvasHeight - espDeviceAreaPixelHeight) / 2;
+    
+    // ESP'lerin (0,0) noktasının canvas üzerindeki piksel konumu
+    const devicePlotOriginX = mapPadding + offsetXForCentering;
+    const devicePlotOriginY = (espCanvas.height - mapPadding) - offsetYForCentering;
+
+
+    // Heatmap instance'ını yapılandır
+    const heatmapInstance = h337.create({
+      container: document.getElementById('heatmapContainer'),
+      radius: 30, // Her bir veri noktasının etki alanı yarıçapı (piksel)
+      maxOpacity: .7, // Maksimum opaklık
+      minOpacity: 0,  // Minimum opaklık
+      blur: .75,      // Bulanıklık faktörü
+       gradient: { // Opsiyonel: Özel renk geçişleri
+         '.5': 'blue',
+         '.8': 'red',
+         '.95': 'yellow'
+       }
+    });
+
+    function drawEspPointOnOverlay(x, y, label, color) {
+      const cx = devicePlotOriginX + x * scale;
+      const cy = devicePlotOriginY - y * scale;
+
+      espCtx.beginPath();
+      espCtx.arc(cx, cy, pointRadius, 0, 2 * Math.PI);
+      espCtx.fillStyle = color;
+      espCtx.fill();
+      espCtx.strokeStyle = '#333'; // Kenarlık rengi
+      espCtx.lineWidth = 1;
+      espCtx.stroke();
+
+      espCtx.font = '11px Roboto';
+      espCtx.fillStyle = '#000'; // Etiket rengi
+      espCtx.textAlign = 'left';
+      espCtx.textBaseline = 'middle';
+      espCtx.fillText(label, cx + pointRadius + 4, cy);
+    }
+
+    function drawESPPositionsOnOverlay() {
+      espCtx.clearRect(0, 0, espCanvas.width, espCanvas.height); // Her çizimde ESP canvas'ını temizle
+      for (const [id, pos] of Object.entries(espPoints)) {
+        drawEspPointOnOverlay(pos.x, pos.y, id, espColor);
+      }
+    }
+    
+    // Başlangıçta ESP'leri çiz
+    drawESPPositionsOnOverlay();
+
+    function updateHeatmap(apiData) {
+      const dataPoints = [];
+      let maxValue = 0; // O anki veri setindeki maksimum yoğunluğu bulmak için
+
+      if (apiData && typeof apiData === 'object') {
+        for (const [mac, pos] of Object.entries(apiData)) {
+          if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') {
+            // Mantıksal koordinatları heatmap için piksel koordinatlarına çevir
+            // Bu koordinatlar heatmap'in kendi canvas'ının sol üst köşesine göre olmalı.
+            // `devicePlotOriginX` ve `devicePlotOriginY` ESP alanının (0,0)'ını referans alır.
+            const pixelX = Math.round(devicePlotOriginX + pos.x * scale);
+            const pixelY = Math.round(devicePlotOriginY - pos.y * scale);
+            
+            // Basit bir yoğunluk değeri, her cihaz tespiti için 1
+            // Daha karmaşık senaryolarda bu değer sinyal gücü vb. olabilir.
+            const value = 5; // Sabit bir değer ya da sinyal gücüne bağlı bir değer
+
+            dataPoints.push({ x: pixelX, y: pixelY, value: value });
+            if (value > maxValue) {
+              maxValue = value;
+            }
+          }
+        }
+      }
+
+      // Eğer maxValue çok düşükse, heatmap görünmeyebilir.
+      // Sabit bir max da kullanabilirsiniz, örn: 50, veri yoğunluğuna göre ayarlayın.
+      // Eğer gelen her noktanın değeri sabitse (örn: 5), o zaman max değeri de
+      // bu değerin birkaç katı olabilir (örn: 25-50 arası)
+      // Daha dinamik bir `max` için, biriken noktaların sayısına göre ayarlanabilir.
+      const heatmapData = {
+        max: Math.max(maxValue, 20), // Minimum bir tavan değer belirleyelim
+        data: dataPoints
+      };
+      heatmapInstance.setData(heatmapData);
+
+      // ESP noktalarını heatmap güncellendikten sonra tekrar çiz (opsiyonel, eğer overlay kullanılıyorsa gerek yok)
+      // drawESPPositionsOnOverlay(); // Zaten periyodik olarak çağrılıyor
+    }
+    
+    // Başlangıçta boş heatmap
+    updateHeatmap({});
+
+    setInterval(() => {
+      fetch('/api/data')
+        .then(res => {
+          if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+          }
+          return res.json();
+        })
+        .then(apiData => {
+            updateHeatmap(apiData);
+            // ESP'leri her veri güncellemesinde tekrar çizmek yerine,
+            // sadece başlangıçta ve belki layout değiştiğinde çizmek daha verimli olabilir.
+            // Ancak anlık konumlar için her seferinde çizmek sorun olmaz.
+            drawESPPositionsOnOverlay(); // ESP'leri de güncelle (eğer konumları değişiyorsa)
+        })
+        .catch(error => {
+          console.error("Veri alınırken veya işlenirken hata:", error);
+          updateHeatmap({}); // Hata durumunda heatmap'i temizle
+          drawESPPositionsOnOverlay(); // ESP'leri yine de göster
+        });
+    }, 2000);
+  </script>
+</body>
+</html>

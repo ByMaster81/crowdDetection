@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Admin Dashboard - ESP Konfigürasyonu</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+      background-color: #f4f7f6;
+      color: #333;
+    }
+    .container {
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      max-width: 900px;
+      margin: auto;
+    }
+    h1 {
+      color: #2c3e50;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    h2 {
+      border-bottom: 2px solid #e9ecef;
+      padding-bottom: 10px;
+      margin-top: 30px;
+    }
+    .header-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 12px;
+      text-align: left;
+    }
+    th {
+      background-color: #e9ecef;
+      font-weight: bold;
+    }
+    input[type="text"], input[type="number"] {
+      width: 90%;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #3498db;
+      color: white;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-right: 5px;
+    }
+    button:hover {
+      background-color: #2980b9;
+    }
+    button.danger {
+      background-color: #e74c3c;
+    }
+    button.danger:hover {
+      background-color: #c0392b;
+    }
+    .settings-form {
+      margin-bottom: 20px;
+      padding: 15px;
+      background-color: #f9f9f9;
+      border: 1px solid #eee;
+      border-radius: 4px;
+    }
+    .settings-form label, .add-esp-form label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    .settings-form input, .add-esp-form input {
+      margin-bottom: 10px;
+      width: calc(100% - 18px);
+    }
+    .action-buttons {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 20px;
+    }
+    .grid-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header-actions">
+        <h1>Sistem Konfigürasyonu</h1>
+        <button onclick="logoutAdmin()" class="danger" style="margin-right: 0;">Çıkış Yap</button>
+    </div>
+
+    <!-- ESP Konumları Bölümü -->
+    <div id="espConfigSection">
+        <h2>ESP Konumlarını Yönet</h2>
+        <div id="espListContainer">
+        <table>
+            <thead>
+            <tr>
+                <th>ESP ID</th>
+                <th>X Koordinatı</th>
+                <th>Y Koordinatı</th>
+                <th>İşlemler</th>
+            </tr>
+            </thead>
+            <tbody id="espTableBody">
+            <!-- ESP satırları buraya eklenecek -->
+            </tbody>
+        </table>
+        </div>
+        <div class="settings-form">
+        <h3>Yeni ESP Ekle</h3>
+        <label for="newEspId">ESP ID:</label>
+        <input type="text" id="newEspId" placeholder="Örn: 5">
+        <label for="newEspX">X Koordinatı:</label>
+        <input type="number" id="newEspX" placeholder="Örn: 10.5" step="any">
+        <label for="newEspY">Y Koordinatı:</label>
+        <input type="number" id="newEspY" placeholder="Örn: 5.2" step="any">
+        <button onclick="addEsp()">Yeni ESP Ekle</button>
+        </div>
+    </div>
+
+    <!-- Diğer Ayarlar Bölümü -->
+    <div id="otherSettingsSection">
+        <h2>Genel Ayarlar</h2>
+        <div class="grid-container">
+            <!-- Mesafe Hesaplama Ayarları -->
+            <div class="settings-form">
+                <h3>Mesafe Hesaplama Ayarları</h3>
+                <label for="txPower">Tx Power (1m RSSI):</label>
+                <input type="number" id="txPower" step="any">
+                <label for="n_factor">Çevresel Faktör (n):</label>
+                <input type="number" id="n_factor" step="any">
+            </div>
+
+            <!-- Trilaterasyon Ayarları -->
+            <div class="settings-form">
+                <h3>Trilaterasyon (Konumlandırma) Ayarları</h3>
+                <label for="lm_damping">Damping (Sönümleme):</label>
+                <input type="number" id="lm_damping" step="any">
+                <label for="lm_maxIterations">Maksimum İterasyon:</label>
+                <input type="number" id="lm_maxIterations" step="1">
+                <label for="lm_errorTolerance">Hata Toleransı:</label>
+                <input type="number" id="lm_errorTolerance" step="any">
+                <label for="lm_initialX">Başlangıç Değeri (X):</label>
+                <input type="number" id="lm_initialX" step="any">
+                 <label for="lm_initialY">Başlangıç Değeri (Y):</label>
+                <input type="number" id="lm_initialY" step="any">
+            </div>
+        </div>
+    </div>
+
+    <div class="action-buttons">
+      <button onclick="saveFullConfig()">Tüm Değişiklikleri Kaydet</button>
+    </div>
+
+  </div>
+
+  <script>
+    // Sayfa başında token kontrolü
+    (function() {
+      const token = localStorage.getItem('adminToken');
+      if (!token) {
+        alert('Yetkisiz erişim. Lütfen giriş yapın.');
+        window.location.href = '/admin/index.html';
+        throw new Error("Authentication required - redirecting to login.");
+      }
+    })();
+
+    let currentConfig = { espPositions: {} };
+
+    // Auth hatası durumunda ortak işlem
+    function handleAuthErrorAndRedirect(response) {
+        if (response.status === 401 || response.status === 403) {
+            alert('Oturumunuz geçersiz veya süresi dolmuş. Lütfen tekrar giriş yapın.');
+            localStorage.removeItem('adminToken');
+            window.location.href = '/admin/index.html';
+            return true;
+        }
+        return false;
+    }
+
+    async function loadConfig() {
+      try {
+        const res = await fetch('/api/config');
+        if (!res.ok) {
+            throw new Error(`Config yüklenemedi: ${res.status} ${res.statusText}`);
+        }
+        currentConfig = await res.json();
+        renderUI(); // Tüm arayüzü tek fonksiyonda render et
+      } catch (error) {
+        console.error("Config yükleme hatası:", error);
+        alert("Konfigürasyon yüklenirken bir hata oluştu: " + error.message);
+        currentConfig = { espPositions: {} };
+        renderUI();
+      }
+    }
+
+    function renderUI() {
+        renderEspTable();
+        renderSettingsForms();
+    }
+
+    function renderEspTable() {
+      const tableBody = document.getElementById('espTableBody');
+      tableBody.innerHTML = '';
+      if (!currentConfig.espPositions) currentConfig.espPositions = {};
+
+      for (const espId in currentConfig.espPositions) {
+        const esp = currentConfig.espPositions[espId];
+        const row = tableBody.insertRow();
+        row.innerHTML = `
+          <td><input type="text" value="${espId}" data-original-id="${espId}" onchange="updateEspId(this, '${espId}')"></td>
+          <td><input type="number" value="${esp.x}" onchange="updateEspValue('${espId}', 'x', this.value)" step="any"></td>
+          <td><input type="number" value="${esp.y}" onchange="updateEspValue('${espId}', 'y', this.value)" step="any"></td>
+          <td><button class="danger" onclick="deleteEsp('${espId}')">Sil</button></td>
+        `;
+      }
+    }
+
+    function renderSettingsForms() {
+        // Mesafe Hesaplama
+        if (currentConfig.distanceCalculation) {
+            document.getElementById('txPower').value = currentConfig.distanceCalculation.txPower;
+            document.getElementById('n_factor').value = currentConfig.distanceCalculation.n_factor;
+        }
+        
+        // Trilaterasyon
+        if (currentConfig.trilateration && currentConfig.trilateration.lm_options) {
+            const opts = currentConfig.trilateration.lm_options;
+            document.getElementById('lm_damping').value = opts.damping;
+            document.getElementById('lm_maxIterations').value = opts.maxIterations;
+            document.getElementById('lm_errorTolerance').value = opts.errorTolerance;
+            if(opts.initialValues && opts.initialValues.length === 2) {
+                document.getElementById('lm_initialX').value = opts.initialValues[0];
+                document.getElementById('lm_initialY').value = opts.initialValues[1];
+            }
+        }
+    }
+
+    function updateEspId(inputElement, oldEspId) {
+        const newEspId = inputElement.value.trim();
+        if (!newEspId) {
+            alert("ESP ID boş olamaz!");
+            inputElement.value = oldEspId;
+            return;
+        }
+        if (newEspId !== oldEspId) {
+            if (currentConfig.espPositions[newEspId]) {
+                alert("Bu ESP ID zaten mevcut. Lütfen farklı bir ID girin.");
+                inputElement.value = oldEspId;
+                return;
+            }
+            const espData = { ...currentConfig.espPositions[oldEspId] };
+            delete currentConfig.espPositions[oldEspId];
+            currentConfig.espPositions[newEspId] = espData;
+            renderEspTable();
+        }
+    }
+
+    function updateEspValue(espId, key, value) {
+      if (currentConfig.espPositions[espId]) {
+        const numValue = parseFloat(value);
+        if (isNaN(numValue) && (key === 'x' || key === 'y')) {
+            alert("X ve Y koordinatları sayısal bir değer olmalıdır.");
+            renderEspTable();
+            return;
+        }
+        currentConfig.espPositions[espId][key] = (key === 'x' || key === 'y') ? numValue : value;
+      }
+    }
+
+    function addEsp() {
+      const newEspIdInput = document.getElementById('newEspId');
+      const newEspXInput = document.getElementById('newEspX');
+      const newEspYInput = document.getElementById('newEspY');
+      const id = newEspIdInput.value.trim();
+      const x = parseFloat(newEspXInput.value);
+      const y = parseFloat(newEspYInput.value);
+
+      if (!id || isNaN(x) || isNaN(y)) {
+        alert("Lütfen tüm alanları doğru bir şekilde doldurun."); return;
+      }
+      if (currentConfig.espPositions[id]) {
+        alert("Bu ESP ID zaten mevcut."); return;
+      }
+
+      currentConfig.espPositions[id] = { x: x, y: y };
+      renderEspTable();
+      newEspIdInput.value = ''; newEspXInput.value = ''; newEspYInput.value = '';
+    }
+
+    function deleteEsp(espId) {
+      if (confirm(`'${espId}' ID'li ESP'yi silmek istediğinizden emin misiniz?`)) {
+        delete currentConfig.espPositions[espId];
+        renderEspTable();
+      }
+    }
+
+    function updateConfigObjectFromUI() {
+        // ESP Pozisyonları zaten `currentConfig` içinde güncel tutuluyor.
+        // Sadece diğer formları okumamız yeterli.
+        
+        // Mesafe Hesaplama Ayarları
+        if (!currentConfig.distanceCalculation) currentConfig.distanceCalculation = {};
+        currentConfig.distanceCalculation.txPower = parseFloat(document.getElementById('txPower').value);
+        currentConfig.distanceCalculation.n_factor = parseFloat(document.getElementById('n_factor').value);
+
+        // Trilaterasyon Ayarları
+        if (!currentConfig.trilateration) currentConfig.trilateration = {};
+        if (!currentConfig.trilateration.lm_options) currentConfig.trilateration.lm_options = {};
+        
+        const opts = currentConfig.trilateration.lm_options;
+        opts.damping = parseFloat(document.getElementById('lm_damping').value);
+        opts.maxIterations = parseInt(document.getElementById('lm_maxIterations').value, 10);
+        opts.errorTolerance = parseFloat(document.getElementById('lm_errorTolerance').value);
+        opts.initialValues = [
+            parseFloat(document.getElementById('lm_initialX').value),
+            parseFloat(document.getElementById('lm_initialY').value)
+        ];
+
+        // NaN kontrolü
+        if (isNaN(opts.damping) || isNaN(opts.maxIterations) || isNaN(opts.errorTolerance) || isNaN(opts.initialValues[0]) || isNaN(opts.initialValues[1])) {
+           alert("Lütfen tüm ayar alanlarına geçerli sayılar girin!");
+           return false; // Hata olduğunu belirtmek için false döndür
+        }
+        return true; // Başarılı
+    }
+
+
+    async function saveFullConfig() {
+      const token = localStorage.getItem('adminToken');
+      if (!token) {
+        alert('Oturumunuz sonlanmış. Lütfen tekrar giriş yapın.');
+        window.location.href = '/admin/index.html';
+        return;
+      }
+
+      // Kaydetmeden önce UI'daki son değerleri config nesnesine aktar
+      const isConfigValid = updateConfigObjectFromUI();
+      if (!isConfigValid) return; // Geçersiz veri varsa işlemi durdur
+      
+      try {
+        const res = await fetch('/api/config', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(currentConfig)
+        });
+
+        if (handleAuthErrorAndRedirect(res)) return;
+        
+        const result = await res.json();
+
+        if (!res.ok) {
+            throw new Error(result.message || `Kaydetme başarısız: ${res.statusText}`);
+        }
+
+        if (result.success) {
+          alert('Konfigürasyon başarıyla kaydedildi.');
+          loadConfig(); // Kayıttan sonra veriyi sunucudan tazeleyerek doğrula
+        } else {
+          alert('Kaydetme hatası: ' + (result.message || 'Bilinmeyen bir hata oluştu.'));
+        }
+      } catch (e) {
+        console.error("Kaydetme sırasında JSON parse veya fetch hatası:", e);
+        alert('Kaydetme sırasında bir hata oluştu: ' + e.message);
+      }
+    }
+
+    function logoutAdmin() {
+      localStorage.removeItem('adminToken');
+      alert('Başarıyla çıkış yapıldı.');
+      window.location.href = '/admin/index.html';
+    }
+
+    loadConfig(); // Sayfa yüklendiğinde konfigürasyonu yükle
+  </script>
+</body>
+</html>
