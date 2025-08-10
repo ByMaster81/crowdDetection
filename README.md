@@ -84,13 +84,13 @@ Sunucu `http://localhost:3001` adresinde çalışır.
 Projeye gönderilen MQTT mesajları şu formatta olmalıdır:
 
 ```
-ESP: <espId> | MAC: <mac_address> | RSSI: <rssi_value>
+ESP:<espId>|MAC:<mac_address>|RSSI:<rssi_value>
 ```
 
 Örnek:
 
 ```
-ESP: esp1 | MAC: AA:BB:CC:DD:EE:FF | RSSI: -65
+ESP:esp1|MAC:AA:BB:CC:DD:EE:FF|RSSI: -65
 ```
 
 ---
