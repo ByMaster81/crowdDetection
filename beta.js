@@ -5,13 +5,12 @@ const path = require('path');
 const { levenbergMarquardt: LM } = require('ml-levenberg-marquardt');
 const fs = require('fs').promises;
 const fsSync = require('fs');
-const jwt = require('jsonwebtoken'); // JWT paketini dahil et
+const jwt = require('jsonwebtoken');
 
 const app = express();
 const port = 3001;
 
-// ÖNEMLİ: Gerçek bir uygulamada bu anahtarı ortam değişkenlerinden (environment variable) alın
-// ve çok daha karmaşık, güvenli bir anahtar kullanın.
+// ÖNEMLİ: Gerçek bir uygulamada bu anahtarı ortam değişkenlerinden (environment variable) alın ve çok daha karmaşık, güvenli bir anahtar kullanın.
 const JWT_SECRET = process.env.JWT_SECRET || 'bu-cok-gizli-bir-jwt-anahtari-olmalı-12345!';
 
 let mqttData = {}; // { "mac": { espId: { rssi, timestamp } } }
@@ -23,7 +22,7 @@ const connectionArgs = {
   host: '37.140.242.180',
   port: '1883',
   username: 'esp32',
-  password: 'p8qfn2od3h'
+  password: 'psswd'
 };
 
 const client = mqtt.connect(connectionArgs);
@@ -51,12 +50,11 @@ client.on('message', (topic, message) => {
   const mac = match[2];
   const rssi = parseInt(match[3], 10);
   const timestamp = Date.now();
-  // --- YENİ EKLENEN KISIM ---
   // RSSI'dan mesafeyi anında hesapla
   const distance = rssiToDistance(rssi);
   // Hesaplanan mesafeyi konsola yazdır
   console.log(`>>> HESAPLAMA: Gelen RSSI (${rssi}) için hesaplanan mesafe: ${distance.toFixed(2)} metre`);
-  // --- YENİ EKLENEN KISIM BİTTİ ---
+
 
   if (!mqttData[mac]) mqttData[mac] = {};
   mqttData[mac][espId] = { rssi, timestamp };
@@ -75,7 +73,6 @@ try {
     config = JSON.parse(fsSync.readFileSync(path.join(__dirname, 'config.json'), 'utf-8'));
 } catch (err) {
     console.error("Başlangıçta config dosyası okunamadı! Varsayılan bir config kullanılacak.", err);
-    // Hata durumunda bile temel bir config objesi oluştur
     config = { 
         espPositions: {},
         distanceCalculation: { txPower: -49, n_factor: 3.1 },
@@ -92,10 +89,10 @@ setInterval(async () => {
   }
 }, 5000);
 
-// --- JWT Kimlik Doğrulama Middleware'i ---
+//JWT Kimlik Doğrulama 
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // "Bearer TOKEN_STRING" formatından token'ı al
+  const token = authHeader && authHeader.split(' ')[1]; // "Bearer TOKEN_STRING" formatından token al
 
   if (token == null) {
     return res.status(401).json({ success: false, message: 'Erişim yetkisi bulunmamaktadır. Token eksik.' });
@@ -110,10 +107,10 @@ function authenticateToken(req, res, next) {
       return res.status(403).json({ success: false, message: 'Geçersiz token. Erişim reddedildi.' });
     }
     req.user = userPayload; // Doğrulanmış kullanıcı bilgilerini request objesine ekle
-    next(); // Token geçerli, sonraki işleme devam et
+    next(); 
   });
 }
-// --- ---
+
 
 app.get('/api/config', async (req, res) => {
   if (config) {
@@ -170,7 +167,7 @@ function trilaterate(macEntry) {
     y: activeEspData.map(p => p.dist)
   };
 
-  // Levenberg-Marquardt için varsayılan opsiyonları tanımla
+  // Levenberg-Marquardt için varsayılan
   const defaultOptions = {
     damping: 0.02,
     initialValues: [5, 5],
@@ -212,11 +209,9 @@ app.get('/api/data', (req, res) => {
 
 app.use('/admin', express.static('frontend/admin'));
 
-// Admin giriş endpoint'i - Başarılı girişte JWT döndürür
+
 app.post('/api/admin/login', (req, res) => {
   const { username, password } = req.body;
-  // GERÇEK BİR UYGULAMADA: Kullanıcı adı ve şifreyi veritabanından kontrol edin
-  // ve şifreleri hash'lenmiş olarak saklayın (bcrypt gibi).
   if (username === 'admin' && password === 'admin123') {
     const userPayload = { username: username, role: 'admin' }; // Token içine eklenecek bilgi
     const accessToken = jwt.sign(userPayload, JWT_SECRET, { expiresIn: '1h' }); // Token 1 saat geçerli
