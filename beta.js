@@ -1,11 +1,18 @@
 
-const express = require('express');
-const mqtt = require('mqtt');
-const path = require('path');
-const { levenbergMarquardt: LM } = require('ml-levenberg-marquardt');
-const fs = require('fs').promises;
-const fsSync = require('fs');
-const jwt = require('jsonwebtoken');
+import express from 'express';
+import mqtt from 'mqtt';
+import path from 'path';
+import { promises as fs } from 'fs';
+import fsSync from 'fs';
+import jwt from 'jsonwebtoken';
+import { levenbergMarquardt as LM } from 'ml-levenberg-marquardt';
+import { dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+
 
 const app = express();
 const port = 3001;
@@ -50,18 +57,17 @@ client.on('message', (topic, message) => {
   const mac = match[2];
   const rssi = parseInt(match[3], 10);
   const timestamp = Date.now();
-  // RSSI'dan mesafeyi anında hesapla
   const distance = rssiToDistance(rssi);
   // Hesaplanan mesafeyi konsola yazdır
   console.log(`>>> HESAPLAMA: Gelen RSSI (${rssi}) için hesaplanan mesafe: ${distance.toFixed(2)} metre`);
-
+  
 
   if (!mqttData[mac]) mqttData[mac] = {};
   mqttData[mac][espId] = { rssi, timestamp };
 });
 
 function rssiToDistance(rssi) {
-  // Config'den değerleri oku, eğer yoksa varsayılan değerleri kullan (güvenlik için)
+
   const txPower = config?.distanceCalculation?.txPower ?? -49;
   const n = config?.distanceCalculation?.n_factor ?? 3.1;
   
@@ -126,9 +132,9 @@ function fittingFunction([deviceX, deviceY]) {
   };
 }
 
-// Config kaydetme işlemini JWT ile koru
+
 app.post('/api/config', authenticateToken, async (req, res) => {
-  // req.user sayesinde hangi kullanıcının bu işlemi yaptığını bilebiliriz (eğer token payload'ında varsa)
+ 
   console.log(`Konfigürasyon güncelleniyor, istek yapan kullanıcı: ${req.user.username}`);
   try {
     const newConfig = req.body;
@@ -176,7 +182,7 @@ function trilaterate(macEntry) {
     errorTolerance: 1e-3
   };
 
-  // Config dosyasından gelen opsiyonları varsayılanların üzerine yaz
+
   const options = {
       ...defaultOptions,
       ...(config?.trilateration?.lm_options || {})
@@ -213,8 +219,8 @@ app.use('/admin', express.static('frontend/admin'));
 app.post('/api/admin/login', (req, res) => {
   const { username, password } = req.body;
   if (username === 'admin' && password === 'admin123') {
-    const userPayload = { username: username, role: 'admin' }; // Token içine eklenecek bilgi
-    const accessToken = jwt.sign(userPayload, JWT_SECRET, { expiresIn: '1h' }); // Token 1 saat geçerli
+    const userPayload = { username: username, role: 'admin' }; 
+    const accessToken = jwt.sign(userPayload, JWT_SECRET, { expiresIn: '1h' }); 
     res.json({ success: true, message: 'Giriş başarılı', token: accessToken });
   } else {
     res.status(401).json({ success: false, message: 'Kullanıcı adı veya şifre hatalı' });
