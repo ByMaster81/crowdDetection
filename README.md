@@ -58,16 +58,6 @@ veya `.env` dosyası kullanabilirsiniz.
 
 ---
 
-## Çalıştırma
-
-```bash
-node index.js
-```
-
-Sunucu `http://localhost:3001` adresinde çalışır.
-
----
-
 ## API Endpoints
 
 | Yöntem | Yol                | Açıklama                        | JWT Gerekiyor? |
